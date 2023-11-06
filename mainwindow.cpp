@@ -7,6 +7,10 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
+    // Initialize variables
+    validwayfile = false;
+    validsegfile = false;
+
     // Read the saved settings
     mwwidth = 480;
     mwheight = 480;
@@ -118,6 +122,13 @@ MainWindow::MainWindow(QWidget *parent)
     lablx2niter->setFont(QFont("Helvetica",14,QFont::Bold));
     lablx2niter->setFrameStyle(QFrame::Panel|QFrame::Sunken);
 
+    labwayvalid = new QLabel();
+    labwayvalid->setFont(QFont("Helvetica",10,QFont::Bold));
+    labwayvalid->setFrameStyle(QFrame::Panel|QFrame::Sunken);
+    labsegvalid = new QLabel();
+    labsegvalid->setFont(QFont("Helvetica",10,QFont::Bold));
+    labsegvalid->setFrameStyle(QFrame::Panel|QFrame::Sunken);
+
     // Organize the GUI elements
     QGridLayout *maingroup = new QGridLayout;
     maingroup->addWidget(lab0,0,0);
@@ -162,6 +173,8 @@ MainWindow::MainWindow(QWidget *parent)
     maingroup->addWidget(lablx2xtd,13,0);
     maingroup->addWidget(lablx2calc,13,1);
     maingroup->addWidget(lablx2niter,13,2);
+    maingroup->addWidget(labwayvalid,14,0);
+    maingroup->addWidget(labsegvalid,14,1);
     QVBoxLayout *layout = new QVBoxLayout;
     layout->addLayout(maingroup);
 
@@ -213,6 +226,15 @@ void MainWindow::writeSettings()
 void MainWindow::createActions()
 {
 
+    openWayAct = new QAction("Open waypoint file",this);
+    connect(openWayAct,SIGNAL(triggered()),this,SLOT(slotGetWaypoints()));
+    openWayAct->setEnabled(true);
+    closeWayAct = new QAction("Close waypoint file",this);
+    connect(closeWayAct,SIGNAL(triggered()),this,SLOT(slotCloseWaypoints()));
+    closeWayAct->setEnabled(false);
+    openSegAct = new QAction("Open segment file",this);
+    connect(openSegAct,SIGNAL(triggered()),this,SLOT(slotGetSegments()));
+    openSegAct->setEnabled(false);
     exitAct = new QAction("Exit",this);
     connect(exitAct,SIGNAL(triggered()),this,SLOT(close()));
 
@@ -227,11 +249,204 @@ void MainWindow::createMenus()
 {
 
     fileMenu = menuBar()->addMenu("File");
+    fileMenu->addAction(openWayAct);
+    fileMenu->addAction(openSegAct);
     fileMenu->addAction(exitAct);
 
     helpMenu = menuBar()->addMenu("Help");
     helpMenu->addAction(maginfoAct);
     helpMenu->addAction(aboutAct);
+
+}
+
+void MainWindow::slotCloseWaypoints()
+{
+
+    waypoints.clear();
+    validwayfile = false;
+    fileMenu->removeAction(closeWayAct);
+    closeWayAct->setEnabled(false);
+    stemp = "Open waypoint file";
+    stemp.append(wayfilename);
+    openWayAct->setText(stemp);
+    fileMenu->insertAction(openSegAct,openWayAct);
+    openWayAct->setEnabled(true);
+    openSegAct->setEnabled(false);
+
+}
+
+void MainWindow::slotGetWaypoints()
+{
+
+    // Prompt user for the desired waypoint filename
+    wayfilename = QFileDialog::getOpenFileName(this,"Select a waypoint file",
+                                              ".",
+                                              "Waypoint files (*.way)");
+
+    // Ingest the contents of the waypoint file
+    int iwpflag = ingestWaypoints();
+    //qDebug() << iwpflag << waypoints.size();
+    //int i;
+    //for (i=0;i<waypoints.size();i++)
+    //{
+    //    qDebug() << i << waypoints[i].name << waypoints[i].lat/DEG2RAD << waypoints[i].lon/DEG2RAD;
+    //}
+
+    // Cannot open the waypoint file
+    if (iwpflag==1)
+    {
+        validwayfile = false;
+        waypoints.clear();
+        QMessageBox msgBox;
+        msgBox.setText("Cannot open selected waypoint file");
+        msgBox.exec();
+    }
+
+    // Waypoint file has fewer than two waypoints
+    else if (iwpflag==2)
+    {
+        validwayfile = false;
+        waypoints.clear();
+        QMessageBox msgBox;
+        msgBox.setText("Selected waypoint file is invalid\n"
+                       "Contains fewer than two waypoints");
+        msgBox.exec();
+    }
+
+    // Validate the newly ingested waypoints
+    else
+    {
+
+        int ivalwpflag = validateWaypoints();
+        if (ivalwpflag==1)
+        {
+            validwayfile = false;
+            waypoints.clear();
+            QMessageBox msgBox;
+            msgBox.setText("Selected waypoint file is invalid\n"
+                           "One or more latitudes is out of bounds");
+            msgBox.exec();
+        }
+        else if (ivalwpflag==2)
+        {
+            validwayfile = false;
+            waypoints.clear();
+            QMessageBox msgBox;
+            msgBox.setText("Selected waypoint file is invalid\n"
+                           "One or more longitudes is out of bounds");
+            msgBox.exec();
+        }
+        else if (ivalwpflag==3)
+        {
+            validwayfile = false;
+            waypoints.clear();
+            QMessageBox msgBox;
+            msgBox.setText("Selected waypoint file is invalid\n"
+                           "One or more waypoint names is repeated");
+            msgBox.exec();
+        }
+        else
+        {
+            validwayfile = true;
+            fileMenu->removeAction(openWayAct);
+            openWayAct->setEnabled(false);
+            stemp = "Close waypoint file ";
+            stemp.append(wayfilename);
+            closeWayAct->setText(stemp);
+            fileMenu->insertAction(openSegAct,closeWayAct);
+            closeWayAct->setEnabled(true);
+            openSegAct->setEnabled(true);
+        }
+    }
+
+}
+
+
+// Returns 0 if waypoints ingested normally
+// Returns 1 if waypoint file could not be opened
+// Returns 2 if waypoint file contains fewer than two waypoints
+int MainWindow::ingestWaypoints()
+{
+    wp newwaypoint;
+    QString stemp2;
+    QFile *wpfile;
+
+    // Clear (reset) the waypoint list
+    waypoints.clear();
+
+    // Open the waypoint file
+    wpfile = new QFile(wayfilename);
+    if (!(wpfile->open(QIODevice::ReadOnly)))
+            return(1);
+
+    // Read the contents of the waypoint file
+    QTextStream instream(wpfile);
+    while(!instream.atEnd())
+    {
+        stemp = instream.readLine();
+        newwaypoint.name = stemp.section(' ',0,0,QString::SectionSkipEmpty);
+        stemp2 = stemp.section(' ',1,1,QString::SectionSkipEmpty);
+        newwaypoint.lat = (stemp2.toDouble())*DEG2RAD;
+        stemp2 = stemp.section(' ',2,2,QString::SectionSkipEmpty);
+        newwaypoint.lon = (stemp2.toDouble())*DEG2RAD;
+        waypoints.append(newwaypoint);
+        //qDebug() << stemp;
+    }
+
+    // Close the waypoint file
+    wpfile->close();
+
+    // Fewer than two waypoints
+    if (waypoints.size()<2)
+        return(2);
+
+    //Normal operation
+    return(0);
+
+}
+
+
+// Returns 0 if waypoints are good
+// Returns 1 if one or more latitudes are out of bounds
+// Returns 2 if one or more longitudes are out of bounds
+// Returns 3 if a waypoint name is used more than once
+int MainWindow::validateWaypoints()
+{
+    int i,j,cmpflag;
+
+    // Search for out-of-bounds lats and lons
+    bool latoob = false;
+    bool lonoob = false;
+    for (i=0;i<waypoints.size();i++)
+    {
+        if (waypoints[i].lat>(PI/2.0)||waypoints[i].lat<(-PI>2.0)) latoob = true;
+        if (waypoints[i].lon>=(2.0*PI)||waypoints[i].lon<(-PI)) lonoob = true;
+    }
+
+    // Search for repeated waypoint names
+    bool wprepeat = false;
+    for (i=0;i<(waypoints.size()-1);i++)
+    {
+        for (j=(i+1);j<waypoints.size();j++)
+        {
+            cmpflag = QString::compare(waypoints[i].name,waypoints[j].name,Qt::CaseInsensitive);
+            if (!cmpflag) wprepeat = true;
+        }
+    }
+
+    // Select return value
+    if (latoob) return(1);  // one or more latitudes out of bounds
+    else if (lonoob) return(2);  // one or more longitudes out of bounds
+    else if (wprepeat) return(3);  // repeated waypoint (case insensitive)
+    else return(0);
+
+}
+
+
+void MainWindow::slotGetSegments()
+{
+
+    qDebug() << "in slotGetSegments\n";
 
 }
 
@@ -336,6 +551,7 @@ void MainWindow::slotNewData(QString newgps)
     updateGreatcircle();
     updateLoxodrome();
     updateLoxodrome2();
+    updateWaySeg();
 
 }
 
@@ -517,5 +733,22 @@ void MainWindow::updateLoxodrome2()
     lablx2calc->setText(stemp);
     stemp = QString("%1").arg(niter,2);
     lablx2niter->setText(stemp);
+
+}
+
+void MainWindow::updateWaySeg()
+{
+
+    // Set valid waypoint label
+    if (validwayfile)
+        labwayvalid->setText("Valid waypoint file");
+    else
+        labwayvalid->setText("No waypoint file");
+
+    // Set valid segment label
+    if (validsegfile)
+        labsegvalid->setText("Valid segment file");
+    else
+        labsegvalid->setText("No segment file");
 
 }

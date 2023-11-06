@@ -92,7 +92,7 @@ double xtdgeodesic(double lata1,double lona1,double lata2,double lona2,double la
   double aza1a2,azdiff;
   geod.Inverse(lata1,lona1,lata2,lona2,aza1a2,aztemp);
   azdiff = getangle1minusangle2(aza1a2,azb1b2);
-  qDebug() << aza1a2 << azb1b2 << azdiff;
+  //qDebug() << aza1a2 << azb1b2 << azdiff;
   if (azdiff>0.0) return(sb12);
   else return (-sb12);
 
@@ -135,7 +135,7 @@ double xtdloxodrome2(double lata1,double lona1,double lata2,double lona2,double 
     {
       xtd = 1000.0*RAD2KM*(latb1r-lata1r);
       double crsABdeg = gccourse1(lata1r,lona1r,lata2r,lona2r)*180.0/PI;
-      qDebug() << "Rhumb line - travel along a parallel" << crsABdeg << '\n';
+      //qDebug() << "Rhumb line - travel along a parallel" << crsABdeg << '\n';
       if (fabs(crsABdeg-90.0)<45.0) xtd *=-1.0;
     }
 
@@ -143,7 +143,7 @@ double xtdloxodrome2(double lata1,double lona1,double lata2,double lona2,double 
     // NEED TO TEST NEAR PRIME MERIDIAN AND DATELINE
     else if ( fabs(lona1r-lona2r)<0.00001 )
     {
-      qDebug() << "Rhumb line - travel along a meridian\n";
+      //qDebug() << "Rhumb line - travel along a meridian\n";
       double distAD = gcdist(lata1r,lona1r,latb1r,lonb1r);
       double crsAD  = gccourse1(lata1r,lona1r,latb1r,lonb1r);
       double crsAB  = gccourse1(lata1r,lona1r,lata2r,lona2r);
@@ -173,7 +173,7 @@ double xtdloxodrome2(double lata1,double lona1,double lata2,double lona2,double 
         //if (deltahdg<-180.0) deltahdg += 360.0;
         //else if (deltahdg>180.0) deltahdg -= 360.0;
         //if (deltahdg<0.0) xtd *=-1.0;
-        qDebug() << "General rhumb line travel";
+        //qDebug() << "General rhumb line travel";
 
         //geod.Inverse(lata1,lona1,lata2,lona2,azia1a2,azitemp);
         //geod.Inverse(lata1,lona1,latb1,lonb2,azia1b1,azitemp);

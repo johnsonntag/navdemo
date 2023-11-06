@@ -11,6 +11,7 @@
 #include <QSettings>
 #include <QLabel>
 #include <QGridLayout>
+#include <QFileDialog>
 
 #include <GeographicLib/Constants.hpp>
 #include <GeographicLib/Utility.hpp>
@@ -21,6 +22,7 @@
 #include "constants.h"
 #include "utility.h"
 #include "navutility.h"
+#include "datastructures.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -53,6 +55,12 @@ private:
     void updateGreatcircle();
     void updateLoxodrome();
     void updateLoxodrome2();
+    void updateWaySeg();
+    int ingestWaypoints();
+    int validateWaypoints();
+    QAction *openWayAct;
+    QAction *closeWayAct;
+    QAction *openSegAct;
     QAction *exitAct;
     QAction *aboutAct;
     QAction *maginfoAct;
@@ -117,6 +125,8 @@ private:
     QLabel *labgcniter;
     QLabel *lablxniter;
     QLabel *lablx2niter;
+    QLabel *labwayvalid;
+    QLabel *labsegvalid;
     int ymd;
     int year;
     int month;
@@ -133,6 +143,8 @@ private:
     GeographicLib::Math::real magmaxtime;
     timeval tmag1;
     timeval tmag2;
+    QString wayfilename;
+    QString segfilename;
     //KELPP north to south
     //double lata1 = 27.175667;
     //double lona1 = -91.949333;
@@ -213,12 +225,18 @@ private:
     double lona1 = -35.0;
     double lata2 = 0.0;
     double lona2 = -45.0;
+    QList <wp> waypoints;
+    bool validwayfile;
+    bool validsegfile;
 
 private slots:
     void slotAbout();
     void slotMaginfo();
     void slotNewData(QString);
     void slotServerError(QAbstractSocket::SocketError socketError);
+    void slotGetWaypoints();
+    void slotCloseWaypoints();
+    void slotGetSegments();
 
 };
 #endif // MAINWINDOW_H
