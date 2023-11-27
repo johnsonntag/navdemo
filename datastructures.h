@@ -12,4 +12,17 @@ struct wp
     double lon;
 };
 
+struct seg
+{
+    QString name1;
+    double lat1;
+    double lon1;
+    QString name2;
+    double lat2;
+    double lon2;
+    double alt;
+    navtechnique nt;
+    bool reversible;
+};
+
 #endif // DATASTRUCTURES_H

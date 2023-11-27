@@ -446,9 +446,145 @@ int MainWindow::validateWaypoints()
 void MainWindow::slotGetSegments()
 {
 
-    qDebug() << "in slotGetSegments\n";
+    // Prompt user for the desired segment filename
+    segfilename = QFileDialog::getOpenFileName(this,"Select a segment file",
+                                              ".",
+                                              "Segment files (*.seg)");
+
+    // Ingest the contents of the segment file
+    int isegflag = ingestSegments();
+
+    // Segment file cannot be opened
+    if (isegflag==1)
+    {
+        validsegfile = false;
+        segments.clear();
+        QMessageBox msgBox;
+        msgBox.setText("Selected segment file cannot be opened");
+        msgBox.exec();
+    }
+
+    // Segment file does not contain a valid segment
+    else if (isegflag==2)
+    {
+        validsegfile = false;
+        segments.clear();
+        QMessageBox msgBox;
+        msgBox.setText("Selected segment file is invalid\n"
+                       "Contains no valid segments");
+        msgBox.exec();
+    }
+
+    // Segment file has a record containing fewer than three words
+    else if (isegflag==3)
+    {
+        validsegfile = false;
+        segments.clear();
+        QMessageBox msgBox;
+        msgBox.setText("Selected segment file is invalid\n"
+                       "One or more lines contains fewer than three words");
+        msgBox.exec();
+    }
+
+    // Validate the segments
+    else
+    {
+
+        int ivalsegflag = validateSegments();
+
+    }
+
+
+
+    qDebug() << isegflag << segments.size();
+    int i;
+    for (i=0;i<segments.size();i++)
+    {
+        qDebug() << i << segments[i].name1 << segments[i].name2 << segments[i].alt <<
+                    segments[i].reversible << segments[i].nt;
+    }
 
 }
+
+
+// Returns 0 if segments ingested normally
+// Returns 1 if segment file could not be opened
+// Returns 2 if segment contains fewer than one segment
+// Returns 3 if any segment lines has fewer than four words
+int MainWindow::ingestSegments()
+{
+    seg newsegment;
+    QString stemp2,stemp3;
+    QFile *segfile;
+
+    // Clear (reset) the segment list
+    segments.clear();
+
+    // Open the waypoint file
+    segfile = new QFile(segfilename);
+    if (!(segfile->open(QIODevice::ReadOnly)))
+            return(1);
+
+    // Read the contents of the segment file
+    bool notenoughfields = false;
+    QTextStream instream(segfile);
+    while(!instream.atEnd())
+    {
+        stemp = instream.readLine();
+        stemp2 = stemp.section(' ',0,0);
+        if (stemp2.length() == 0) notenoughfields = true;
+        else newsegment.name1 = stemp2;
+        stemp2 = stemp.section(' ',1,1);
+        if (stemp2.length() == 0) notenoughfields = true;
+        else newsegment.name2 = stemp2;
+        stemp2 = stemp.section(' ',2,2);
+        if (stemp2.length() == 0) notenoughfields = true;
+        else newsegment.alt = (stemp2.toDouble())*FT2M;
+        stemp2 = stemp.section(' ',3,3);
+        if (stemp2.length() == 0) notenoughfields = true;
+        else
+        {
+            stemp3 = stemp2.left(1);
+            int cmpflag = QString::compare(stemp3,"y",Qt::CaseInsensitive);
+            if (!cmpflag) newsegment.reversible = true;
+            else newsegment.reversible = false;
+        }
+        stemp2 = stemp.section(' ',4,4);
+        stemp3 = stemp2.left(4);
+        if (stemp2.length()==0)  newsegment.nt = geodesic;
+        else if (QString::compare(stemp3,"geod",Qt::CaseInsensitive) == 0)
+            newsegment.nt = geodesic;
+        else if (QString::compare(stemp3,"grea",Qt::CaseInsensitive) == 0)
+            newsegment.nt = greatcircle;
+        else if (QString::compare(stemp3,"loxo",Qt::CaseInsensitive) == 0)
+            newsegment.nt = loxodrome;
+        else
+            newsegment.nt = undefined;
+        segments.append(newsegment);
+    }
+
+    // Close the waypoint file
+    segfile->close();
+
+    // Segments with too few fields
+    if (notenoughfields) return(3);
+
+    // File has fewer than one segment
+    else if (segments.size()<1) return(2);
+
+    // Normal operation
+    else return(0);
+
+}
+
+
+int MainWindow::validateSegments()
+{
+
+    return(0);
+
+}
+
 
 void MainWindow::slotMaginfo()
 {

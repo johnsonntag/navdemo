@@ -58,6 +58,8 @@ private:
     void updateWaySeg();
     int ingestWaypoints();
     int validateWaypoints();
+    int ingestSegments();
+    int validateSegments();
     QAction *openWayAct;
     QAction *closeWayAct;
     QAction *openSegAct;
@@ -226,6 +228,7 @@ private:
     double lata2 = 0.0;
     double lona2 = -45.0;
     QList <wp> waypoints;
+    QList <seg> segments;
     bool validwayfile;
     bool validsegfile;
 
