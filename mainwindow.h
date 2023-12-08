@@ -63,6 +63,7 @@ private:
     QAction *openWayAct;
     QAction *closeWayAct;
     QAction *openSegAct;
+    QAction *closeSegAct;
     QAction *exitAct;
     QAction *aboutAct;
     QAction *maginfoAct;
@@ -239,6 +240,7 @@ private slots:
     void slotServerError(QAbstractSocket::SocketError socketError);
     void slotGetWaypoints();
     void slotCloseWaypoints();
+    void slotCloseSegments();
     void slotGetSegments();
 
 };

@@ -235,6 +235,9 @@ void MainWindow::createActions()
     openSegAct = new QAction("Open segment file",this);
     connect(openSegAct,SIGNAL(triggered()),this,SLOT(slotGetSegments()));
     openSegAct->setEnabled(false);
+    closeSegAct = new QAction("Close segment file",this);
+    connect(closeSegAct,SIGNAL(triggered()),this,SLOT(slotCloseSegments()));
+    closeSegAct->setEnabled(false);
     exitAct = new QAction("Exit",this);
     connect(exitAct,SIGNAL(triggered()),this,SLOT(close()));
 
@@ -272,6 +275,23 @@ void MainWindow::slotCloseWaypoints()
     fileMenu->insertAction(openSegAct,openWayAct);
     openWayAct->setEnabled(true);
     openSegAct->setEnabled(false);
+
+}
+
+void MainWindow::slotCloseSegments()
+{
+
+    segments.clear();
+    validsegfile = false;
+    qDebug() << "in slotCloseSegments";
+    fileMenu->removeAction(closeSegAct);
+    closeSegAct->setEnabled(false);
+    stemp = "Open segment file";
+    //stemp.append(segfilename);
+    openSegAct->setText(stemp);
+    fileMenu->insertAction(exitAct,openSegAct);
+    openSegAct->setEnabled(true);
+    closeWayAct->setEnabled(true);
 
 }
 
@@ -491,7 +511,36 @@ void MainWindow::slotGetSegments()
     {
 
         int ivalsegflag = validateSegments();
-
+        if (ivalsegflag==1)
+        {
+            validsegfile = false;
+            segments.clear();
+            QMessageBox msgBox;
+            msgBox.setText("Selected segment file is invalid\n"
+                           "One or more waypoint names does not match waypoint data");
+            msgBox.exec();
+        }
+        else if (ivalsegflag==2)
+        {
+            validsegfile = false;
+            segments.clear();
+            QMessageBox msgBox;
+            msgBox.setText("Selected segment file is invalid\n"
+                           "One or more nav techniques is undefined");
+            msgBox.exec();
+        }
+        else
+        {
+            validsegfile = true;
+            closeWayAct->setEnabled(false);
+            fileMenu->removeAction(openSegAct);
+            openSegAct->setEnabled(false);
+            stemp = "Close segment file ";
+            stemp.append(segfilename);
+            closeSegAct->setText(stemp);
+            fileMenu->insertAction(exitAct,closeSegAct);
+            closeSegAct->setEnabled(true);
+        }
     }
 
 
@@ -500,8 +549,9 @@ void MainWindow::slotGetSegments()
     int i;
     for (i=0;i<segments.size();i++)
     {
-        qDebug() << i << segments[i].name1 << segments[i].name2 << segments[i].alt <<
-                    segments[i].reversible << segments[i].nt;
+        qDebug() << i << segments[i].name1 << segments[i].lat1/DEG2RAD << segments[i].lon1/DEG2RAD <<
+                    segments[i].name2 << segments[i].lat2/DEG2RAD << segments[i].lon2/DEG2RAD <<
+                    segments[i].alt << segments[i].reversible << segments[i].nt;
     }
 
 }
@@ -578,9 +628,44 @@ int MainWindow::ingestSegments()
 }
 
 
+// Returns 0 if segments validated normally
+// Returns 1 if one or more waypoint names could not be matched to the waypoint file
+// Returns 2 if one or more segments has an undefined nav technique
 int MainWindow::validateSegments()
 {
+    bool match1, match2;
+    int i,j;
 
+    // Match segment names with waypoints
+    for (i=0;i<segments.size();i++)
+    {
+        match1 = false;
+        match2 = false;
+        for (j=0;j<waypoints.size();j++)
+        {
+            if (QString::compare(segments[i].name1,waypoints[j].name,Qt::CaseInsensitive) == 0)
+            {
+                segments[i].lat1 = waypoints[j].lat;
+                segments[i].lon1 = waypoints[j].lon;
+                match1 = true;
+            }
+            if (QString::compare(segments[i].name2,waypoints[j].name,Qt::CaseInsensitive) == 0)
+            {
+                segments[i].lat2 = waypoints[j].lat;
+                segments[i].lon2 = waypoints[j].lon;
+                match2 = true;
+            }
+        }
+        if (!match1||!match2) return(1);
+    }
+
+    // Search for undefined nav technique
+    for (i=0;i<segments.size();i++)
+    {
+        if (segments[i].nt == undefined) return(2);
+    }
+
+    // Return normal
     return(0);
 
 }
