@@ -283,7 +283,6 @@ void MainWindow::slotCloseSegments()
 
     segments.clear();
     validsegfile = false;
-    qDebug() << "in slotCloseSegments";
     fileMenu->removeAction(closeSegAct);
     closeSegAct->setEnabled(false);
     stemp = "Open segment file";
@@ -302,15 +301,10 @@ void MainWindow::slotGetWaypoints()
     wayfilename = QFileDialog::getOpenFileName(this,"Select a waypoint file",
                                               ".",
                                               "Waypoint files (*.way)");
+    if (wayfilename.isNull()) return;
 
     // Ingest the contents of the waypoint file
     int iwpflag = ingestWaypoints();
-    //qDebug() << iwpflag << waypoints.size();
-    //int i;
-    //for (i=0;i<waypoints.size();i++)
-    //{
-    //    qDebug() << i << waypoints[i].name << waypoints[i].lat/DEG2RAD << waypoints[i].lon/DEG2RAD;
-    //}
 
     // Cannot open the waypoint file
     if (iwpflag==1)
@@ -470,6 +464,7 @@ void MainWindow::slotGetSegments()
     segfilename = QFileDialog::getOpenFileName(this,"Select a segment file",
                                               ".",
                                               "Segment files (*.seg)");
+    if (segfilename.isNull()) return;
 
     // Ingest the contents of the segment file
     int isegflag = ingestSegments();
@@ -541,17 +536,6 @@ void MainWindow::slotGetSegments()
             fileMenu->insertAction(exitAct,closeSegAct);
             closeSegAct->setEnabled(true);
         }
-    }
-
-
-
-    qDebug() << isegflag << segments.size();
-    int i;
-    for (i=0;i<segments.size();i++)
-    {
-        qDebug() << i << segments[i].name1 << segments[i].lat1/DEG2RAD << segments[i].lon1/DEG2RAD <<
-                    segments[i].name2 << segments[i].lat2/DEG2RAD << segments[i].lon2/DEG2RAD <<
-                    segments[i].alt << segments[i].reversible << segments[i].nt;
     }
 
 }
