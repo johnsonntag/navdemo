@@ -12,6 +12,7 @@
 #include <QLabel>
 #include <QGridLayout>
 #include <QFileDialog>
+#include <QPushButton>
 
 #include <GeographicLib/Constants.hpp>
 #include <GeographicLib/Utility.hpp>
@@ -60,6 +61,8 @@ private:
     int validateWaypoints();
     int ingestSegments();
     int validateSegments();
+    void loadWaypoints();
+    void loadSegments();
     QAction *openWayAct;
     QAction *closeWayAct;
     QAction *openSegAct;
@@ -107,6 +110,8 @@ private:
     QLabel *lab18;
     QLabel *lab19;
     QLabel *lab20;
+    QLabel *lab21;
+    QLabel *lab22;
     QLabel *labdate;
     QLabel *labtime;
     QLabel *lablat;
@@ -130,6 +135,11 @@ private:
     QLabel *lablx2niter;
     QLabel *labwayvalid;
     QLabel *labsegvalid;
+    QLabel *labfwp;
+    QLabel *labtwp;
+    QPushButton *prevseg;
+    QPushButton *nextseg;
+    QPushButton *revseg;
     int ymd;
     int year;
     int month;
@@ -148,6 +158,8 @@ private:
     timeval tmag2;
     QString wayfilename;
     QString segfilename;
+    QString lastwayfilename;
+    QString lastsegfilename;
     //KELPP north to south
     //double lata1 = 27.175667;
     //double lona1 = -91.949333;
@@ -224,14 +236,20 @@ private:
     //double lata2 = 0.0;
     //double lona2 = -35.0;
     //Equator east to west
-    double lata1 = 0.0;
-    double lona1 = -35.0;
-    double lata2 = 0.0;
-    double lona2 = -45.0;
+    //double lata1 = 0.0;
+    //double lona1 = -35.0;
+    //double lata2 = 0.0;
+    //double lona2 = -45.0;
+    double latfrom;
+    double lonfrom;
+    double latto;
+    double lonto;
     QList <wp> waypoints;
     QList <seg> segments;
     bool validwayfile;
     bool validsegfile;
+    int segindx;
+    bool segreversed;
 
 private slots:
     void slotAbout();
@@ -242,6 +260,9 @@ private slots:
     void slotCloseWaypoints();
     void slotCloseSegments();
     void slotGetSegments();
+    void slotPrevSeg();
+    void slotNextSeg();
+    void slotRevSeg();
 
 };
 #endif // MAINWINDOW_H

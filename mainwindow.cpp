@@ -10,11 +10,14 @@ MainWindow::MainWindow(QWidget *parent)
     // Initialize variables
     validwayfile = false;
     validsegfile = false;
+    segindx = 0;
 
     // Read the saved settings
     mwwidth = 480;
     mwheight = 480;
     readSettings();
+    //qDebug() << "waypoint file name" << lastwayfilename;
+    //qDebug() << "segment file name" << lastsegfilename;
 
     // Get starting info from user
     setupGui *setup = new setupGui(&host,&port);
@@ -129,6 +132,25 @@ MainWindow::MainWindow(QWidget *parent)
     labsegvalid->setFont(QFont("Helvetica",10,QFont::Bold));
     labsegvalid->setFrameStyle(QFrame::Panel|QFrame::Sunken);
 
+    lab21 = new QLabel("From WP");
+    labfwp = new QLabel;
+    labfwp->setFont(QFont("Helvetica",14,QFont::Bold));
+    labfwp->setFrameStyle(QFrame::Panel|QFrame::Sunken);
+    lab22 = new QLabel("To WP");
+    labtwp = new QLabel;
+    labtwp->setFont(QFont("Helvetica",14,QFont::Bold));
+    labtwp->setFrameStyle(QFrame::Panel|QFrame::Sunken);
+
+    prevseg = new QPushButton("Prev seg");
+    connect(prevseg,SIGNAL(clicked()),this,SLOT(slotPrevSeg()));
+    prevseg->setEnabled(false);
+    nextseg = new QPushButton("Next seg");
+    connect(nextseg,SIGNAL(clicked()),this,SLOT(slotNextSeg()));
+    nextseg->setEnabled(false);
+    revseg = new QPushButton("Reverse seg");
+    connect(revseg,SIGNAL(clicked()),this,SLOT(slotRevSeg()));
+    revseg->setEnabled(false);
+
     // Organize the GUI elements
     QGridLayout *maingroup = new QGridLayout;
     maingroup->addWidget(lab0,0,0);
@@ -175,6 +197,13 @@ MainWindow::MainWindow(QWidget *parent)
     maingroup->addWidget(lablx2niter,13,2);
     maingroup->addWidget(labwayvalid,14,0);
     maingroup->addWidget(labsegvalid,14,1);
+    maingroup->addWidget(lab21,15,0);
+    maingroup->addWidget(lab22,15,1);
+    maingroup->addWidget(labfwp,16,0);
+    maingroup->addWidget(labtwp,16,1);
+    maingroup->addWidget(prevseg,17,0);
+    maingroup->addWidget(nextseg,17,1);
+    maingroup->addWidget(revseg,17,2);
     QVBoxLayout *layout = new QVBoxLayout;
     layout->addLayout(maingroup);
 
@@ -185,6 +214,33 @@ MainWindow::MainWindow(QWidget *parent)
     // Build the network client
     client = new GenericClient(this,host,port);
     connect(client,SIGNAL(newLine(QString)),this,SLOT(slotNewData(QString)));
+
+    // Load waypoint and segment files if specified
+    if (!lastwayfilename.isEmpty()&&!lastwayfilename.isNull())
+    {
+        wayfilename = lastwayfilename;
+        loadWaypoints();
+        if (validwayfile&&!lastsegfilename.isEmpty()&&!lastsegfilename.isNull())
+        {
+            segfilename = lastsegfilename;
+            loadSegments();
+        }
+    }
+    if (validsegfile)
+    {
+        prevseg->setEnabled(true);
+        nextseg->setEnabled(true);
+        if (segments[segindx].reversible) revseg->setEnabled(true);
+        else revseg->setEnabled(false);
+        labfwp->setText(segments[segindx].name1);
+        labtwp->setText(segments[segindx].name2);
+    }
+    if (!validsegfile)
+    {
+        segindx = 0;
+        labfwp->setText("----");
+        labtwp->setText("----");
+    }
 
 }
 
@@ -209,6 +265,9 @@ void MainWindow::readSettings()
     port = settings.value("port",4063).toInt();
     mwwidth = settings.value("mwwidth",200).toInt();
     mwheight = settings.value("mwheight",200).toInt();
+    lastwayfilename = settings.value("wayfilename","").toString();
+    lastsegfilename = settings.value("segfilename","").toString();
+    segindx = settings.value("segindx",0).toInt();
 
 }
 
@@ -220,6 +279,11 @@ void MainWindow::writeSettings()
     settings.setValue("port",port);
     settings.setValue("mwwidth",width());
     settings.setValue("mwheight",height());
+    if (validwayfile) settings.setValue("wayfilename",wayfilename);
+    else settings.setValue("wayfilename","");
+    if (validsegfile) settings.setValue("segfilename",segfilename);
+    else settings.setValue("segfilename","");
+    settings.setValue("segindx",segindx);
 
 }
 
@@ -286,11 +350,15 @@ void MainWindow::slotCloseSegments()
     fileMenu->removeAction(closeSegAct);
     closeSegAct->setEnabled(false);
     stemp = "Open segment file";
-    //stemp.append(segfilename);
     openSegAct->setText(stemp);
     fileMenu->insertAction(exitAct,openSegAct);
     openSegAct->setEnabled(true);
     closeWayAct->setEnabled(true);
+    prevseg->setEnabled(false);
+    nextseg->setEnabled(false);
+    revseg->setEnabled(false);
+    labfwp->setText("----");
+    labtwp->setText("----");
 
 }
 
@@ -301,7 +369,14 @@ void MainWindow::slotGetWaypoints()
     wayfilename = QFileDialog::getOpenFileName(this,"Select a waypoint file",
                                               ".",
                                               "Waypoint files (*.way)");
-    if (wayfilename.isNull()) return;
+    if (wayfilename.isNull()||wayfilename.isEmpty()) return;
+    loadWaypoints();
+
+}
+
+
+void MainWindow::loadWaypoints()
+{
 
     // Ingest the contents of the waypoint file
     int iwpflag = ingestWaypoints();
@@ -312,7 +387,9 @@ void MainWindow::slotGetWaypoints()
         validwayfile = false;
         waypoints.clear();
         QMessageBox msgBox;
-        msgBox.setText("Cannot open selected waypoint file");
+        stemp = "Cannot open specified waypoint file\n";
+        stemp.append(wayfilename);
+        msgBox.setText(stemp);
         msgBox.exec();
     }
 
@@ -322,8 +399,10 @@ void MainWindow::slotGetWaypoints()
         validwayfile = false;
         waypoints.clear();
         QMessageBox msgBox;
-        msgBox.setText("Selected waypoint file is invalid\n"
-                       "Contains fewer than two waypoints");
+        stemp = "Specified waypoint file\n";
+        stemp.append(wayfilename);
+        stemp.append("\nis invalid because it contains fewer than two waypoints.");
+        msgBox.setText(stemp);
         msgBox.exec();
     }
 
@@ -337,8 +416,10 @@ void MainWindow::slotGetWaypoints()
             validwayfile = false;
             waypoints.clear();
             QMessageBox msgBox;
-            msgBox.setText("Selected waypoint file is invalid\n"
-                           "One or more latitudes is out of bounds");
+            stemp = "Specified waypoint file\n";
+            stemp.append(wayfilename);
+            stemp.append("\nis invalid because one or more latitudes is out of bounds.");
+            msgBox.setText(stemp);
             msgBox.exec();
         }
         else if (ivalwpflag==2)
@@ -346,8 +427,10 @@ void MainWindow::slotGetWaypoints()
             validwayfile = false;
             waypoints.clear();
             QMessageBox msgBox;
-            msgBox.setText("Selected waypoint file is invalid\n"
-                           "One or more longitudes is out of bounds");
+            stemp = "Specified waypoint file\n";
+            stemp.append(wayfilename);
+            stemp.append("\nis invalid because one or more longitudes is out of bounds.");
+            msgBox.setText(stemp);
             msgBox.exec();
         }
         else if (ivalwpflag==3)
@@ -355,8 +438,10 @@ void MainWindow::slotGetWaypoints()
             validwayfile = false;
             waypoints.clear();
             QMessageBox msgBox;
-            msgBox.setText("Selected waypoint file is invalid\n"
-                           "One or more waypoint names is repeated");
+            stemp = "Specified waypoint file\n";
+            stemp.append(wayfilename);
+            stemp.append("\nis invalid because one or more waypoint names is repeated.");
+            msgBox.setText(stemp);
             msgBox.exec();
         }
         else
@@ -464,7 +549,14 @@ void MainWindow::slotGetSegments()
     segfilename = QFileDialog::getOpenFileName(this,"Select a segment file",
                                               ".",
                                               "Segment files (*.seg)");
-    if (segfilename.isNull()) return;
+    if (segfilename.isNull()||segfilename.isEmpty()) return;
+    loadSegments();
+
+}
+
+
+void MainWindow::loadSegments()
+{
 
     // Ingest the contents of the segment file
     int isegflag = ingestSegments();
@@ -527,6 +619,7 @@ void MainWindow::slotGetSegments()
         else
         {
             validsegfile = true;
+            segreversed = false;
             closeWayAct->setEnabled(false);
             fileMenu->removeAction(openSegAct);
             openSegAct->setEnabled(false);
@@ -535,6 +628,15 @@ void MainWindow::slotGetSegments()
             closeSegAct->setText(stemp);
             fileMenu->insertAction(exitAct,closeSegAct);
             closeSegAct->setEnabled(true);
+            prevseg->setEnabled(true);
+            nextseg->setEnabled(true);
+            revseg->setEnabled(true);
+            labtwp->setText(segments[segindx].name1);
+            labfwp->setText(segments[segindx].name2);
+            latfrom = segments[segindx].lat1;
+            lonfrom = segments[segindx].lon1;
+            latto = segments[segindx].lat2;
+            lonto = segments[segindx].lon2;
         }
     }
 
@@ -757,6 +859,7 @@ void MainWindow::slotNewData(QString newgps)
     updateLoxodrome();
     updateLoxodrome2();
     updateWaySeg();
+    //qDebug() << segreversed;
 
 }
 
@@ -875,10 +978,19 @@ void MainWindow::updateGeodesic()
 {
     int niter;
 
+    niter = 0;
     gettimeofday(&tmag1,NULL);
-    double xtd = xtdgeodesic(lata1,lona1,lata2,lona2,lat/DEG2RAD,lon/DEG2RAD,&niter);
-    stemp = QString("%1").arg(xtd*M2FT,6,'f',0);
-    labgextd->setText(stemp);
+    if (validsegfile)
+    {
+        double xtd = xtdgeodesic(latfrom/DEG2RAD,lonfrom/DEG2RAD,latto/DEG2RAD,lonto/DEG2RAD,
+                                 lat/DEG2RAD,lon/DEG2RAD,&niter);
+        stemp = QString("%1").arg(xtd*M2FT,6,'f',0);
+        labgextd->setText(stemp);
+    }
+    else
+    {
+        labgextd->setText("----");
+    }
     gettimeofday(&tmag2,NULL);
     double tmagcalcms = 1.0e3*(tmag2.tv_sec-tmag1.tv_sec)
             + (double)(tmag2.tv_usec-tmag1.tv_usec)/1.0e3;
@@ -893,9 +1005,18 @@ void MainWindow::updateGreatcircle()
 {
 
     gettimeofday(&tmag1,NULL);
-    double xtd = xtdgreatcircle(lata1,lona1,lata2,lona2,lat/DEG2RAD,lon/DEG2RAD);
-    stemp = QString("%1").arg(xtd*M2FT,6,'f',0);
-    labgcxtd->setText(stemp);
+
+    if (validsegfile)
+    {
+        double xtd = xtdgreatcircle(latfrom/DEG2RAD,lonfrom/DEG2RAD,latto/DEG2RAD,lonto/DEG2RAD,
+                                    lat/DEG2RAD,lon/DEG2RAD);
+        stemp = QString("%1").arg(xtd*M2FT,6,'f',0);
+        labgcxtd->setText(stemp);
+    }
+    else
+    {
+        labgcxtd->setText("----");
+    }
     gettimeofday(&tmag2,NULL);
     double tmagcalcms = 1.0e3*(tmag2.tv_sec-tmag1.tv_sec)
             + (double)(tmag2.tv_usec-tmag1.tv_usec)/1.0e3;
@@ -909,10 +1030,20 @@ void MainWindow::updateLoxodrome()
 {
     int niter;
 
+    niter = 0;
     gettimeofday(&tmag1,NULL);
-    double xtd = xtdloxodrome(lata1,lona1,lata2,lona2,lat/DEG2RAD,lon/DEG2RAD,&niter);
-    stemp = QString("%1").arg(xtd*M2FT,6,'f',0);
-    lablxxtd->setText(stemp);
+
+    if (validsegfile)
+    {
+        double xtd = xtdloxodrome(latfrom/DEG2RAD,lonfrom/DEG2RAD,latto/DEG2RAD,lonto/DEG2RAD,
+                                  lat/DEG2RAD,lon/DEG2RAD,&niter);
+        stemp = QString("%1").arg(xtd*M2FT,6,'f',0);
+        lablxxtd->setText(stemp);
+    }
+    else
+    {
+        lablxxtd->setText("----");
+    }
     gettimeofday(&tmag2,NULL);
     double tmagcalcms = 1.0e3*(tmag2.tv_sec-tmag1.tv_sec)
             + (double)(tmag2.tv_usec-tmag1.tv_usec)/1.0e3;
@@ -927,10 +1058,20 @@ void MainWindow::updateLoxodrome2()
 {
     int niter;
 
+    niter = 0;
     gettimeofday(&tmag1,NULL);
-    double xtd = xtdloxodrome2(lata1,lona1,lata2,lona2,lat/DEG2RAD,lon/DEG2RAD,&niter);
-    stemp = QString("%1").arg(xtd*M2FT,6,'f',0);
-    lablx2xtd->setText(stemp);
+
+    if (validsegfile)
+    {
+        double xtd = xtdloxodrome2(latfrom/DEG2RAD,lonfrom/DEG2RAD,latto/DEG2RAD,lonto/DEG2RAD,
+                                   lat/DEG2RAD,lon/DEG2RAD,&niter);
+        stemp = QString("%1").arg(xtd*M2FT,6,'f',0);
+        lablx2xtd->setText(stemp);
+    }
+    else
+    {
+        lablx2xtd->setText("----");
+    }
     gettimeofday(&tmag2,NULL);
     double tmagcalcms = 1.0e3*(tmag2.tv_sec-tmag1.tv_sec)
             + (double)(tmag2.tv_usec-tmag1.tv_usec)/1.0e3;
@@ -957,3 +1098,59 @@ void MainWindow::updateWaySeg()
         labsegvalid->setText("No segment file");
 
 }
+
+
+void MainWindow::slotPrevSeg()
+{
+    if (segindx>0) segindx--;
+    latfrom = segments[segindx].lat1;
+    lonfrom = segments[segindx].lon1;
+    latto = segments[segindx].lat2;
+    lonto = segments[segindx].lon2;
+    labfwp->setText(segments[segindx].name1);
+    labtwp->setText(segments[segindx].name2);
+    if (segments[segindx].reversible) revseg->setEnabled(true);
+    else revseg->setEnabled(false);
+    segreversed = false;
+}
+
+
+void MainWindow::slotNextSeg()
+{
+    if (segindx<(segments.size()-1)) segindx++;
+    latfrom = segments[segindx].lat1;
+    lonfrom = segments[segindx].lon1;
+    latto = segments[segindx].lat2;
+    lonto = segments[segindx].lon2;
+    labfwp->setText(segments[segindx].name1);
+    labtwp->setText(segments[segindx].name2);
+    if (segments[segindx].reversible) revseg->setEnabled(true);
+    else revseg->setEnabled(false);
+    segreversed = false;
+}
+
+
+void MainWindow::slotRevSeg()
+{
+    segreversed = !segreversed;
+    if (!segreversed)
+    {
+        latfrom = segments[segindx].lat1;
+        lonfrom = segments[segindx].lon1;
+        latto = segments[segindx].lat2;
+        lonto = segments[segindx].lon2;
+        labfwp->setText(segments[segindx].name1);
+        labtwp->setText(segments[segindx].name2);
+    }
+    else
+    {
+        latfrom = segments[segindx].lat2;
+        lonfrom = segments[segindx].lon2;
+        latto = segments[segindx].lat1;
+        lonto = segments[segindx].lon1;
+        labfwp->setText(segments[segindx].name2);
+        labtwp->setText(segments[segindx].name1);
+    }
+    //qDebug() << segreversed;
+}
+
